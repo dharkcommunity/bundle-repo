@@ -1,9 +1,11 @@
+name: Clippy check
+
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-name: Clippy check
+
 jobs:
   clippy_check:
     runs-on: ubuntu-latest
