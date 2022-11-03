@@ -1,13 +1,17 @@
-use crate::config::{load_config, ConfigError, ServerConfig};
+use std::io;
+
 use actix_cors::Cors;
 use actix_web::{App, HttpServer};
 use log::{error, info};
 
-use std::io;
+use crate::config::{load_config, ConfigError, ServerConfig};
 
 mod build;
 mod config;
+mod db;
 mod logging;
+mod package;
+mod routes;
 
 #[cfg(test)]
 mod tests;

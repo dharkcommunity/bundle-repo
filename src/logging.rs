@@ -1,9 +1,11 @@
-use crate::build;
-use crate::build::Build;
+use std::{fs, io};
+
 use chrono::Local;
 use fern::{Dispatch, InitError};
 use log::LevelFilter;
-use std::{fs, io};
+
+use crate::build;
+use crate::build::Build;
 
 pub fn setup_logger() -> Result<(), InitError> {
     fs::create_dir_all("logs")?;

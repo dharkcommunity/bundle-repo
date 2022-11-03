@@ -1,11 +1,12 @@
-use crate::build;
-use crate::build::Build;
-use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
 use std::net::SocketAddr;
-
 use std::path::Path;
 use std::{fs, io};
+
+use serde::{Deserialize, Serialize};
+
+use crate::build;
+use crate::build::Build;
 
 /// A serializable struct containing adjustable server settings.
 ///
@@ -74,7 +75,7 @@ where
             return Ok(data);
         }
     }
-    toml::from_str(&content?).map_err(ConfigError::Toml)
+    Ok(toml::from_str(&content?)?)
 }
 
 /// Try to deserialize the TOML file at the given path into a [ServerConfig].
