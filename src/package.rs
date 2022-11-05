@@ -7,6 +7,7 @@ pub struct Package {
     releases: Vec<String>,
 }
 
+#[allow(unused)]
 impl Package {
     pub const fn new(title: String, author: u32, releases: Vec<String>) -> Self {
         Self {

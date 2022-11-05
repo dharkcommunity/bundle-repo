@@ -18,8 +18,15 @@ mod tests;
 
 async fn start_server(config: ServerConfig) -> io::Result<()> {
     HttpServer::new(move || {
-        let cors = match &config.cors_origin {
-            Some(v) => Cors::default().allowed_origin(v),
+        let cors = match &config.cors_origins {
+            Some(allowed_origins) => {
+                let mut cors = Cors::default();
+
+                for origin in allowed_origins {
+                    cors = cors.allowed_origin(origin);
+                }
+                cors
+            }
             None => Cors::permissive(),
         };
 
