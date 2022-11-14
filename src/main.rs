@@ -4,11 +4,11 @@ use actix_cors::Cors;
 use actix_web::{App, HttpServer};
 use log::{error, info};
 
-use crate::config::{load_config, ConfigError, ServerConfig};
+use crate::config::{load_config, ServerConfig};
 
+mod bucket;
 mod build;
 mod config;
-mod db;
 mod logging;
 mod package;
 mod routes;
@@ -18,17 +18,11 @@ mod tests;
 
 async fn start_server(config: ServerConfig) -> io::Result<()> {
     HttpServer::new(move || {
-        let cors = match &config.cors_origins {
-            Some(allowed_origins) => {
-                let mut cors = Cors::default();
+        let mut cors = Cors::default();
 
-                for origin in allowed_origins {
-                    cors = cors.allowed_origin(origin);
-                }
-                cors
-            }
-            None => Cors::permissive(),
-        };
+        for origin in &config.cors_origins {
+            cors = cors.allowed_origin(origin);
+        }
 
         App::new().wrap(cors)
     })
@@ -46,20 +40,13 @@ async fn main() {
         return;
     }
 
-    info!("Starting server...");
     info!("Build type: {:?}", build::BUILD);
-
     info!("Loading config...");
 
     let config = match load_config() {
         Ok(v) => v,
         Err(err) => {
-            match err {
-                ConfigError::Io(err) => error!("An IO error occurred: {err}"),
-                ConfigError::Toml(err) => {
-                    error!("An error occurred while parsing the config: {err}");
-                }
-            }
+            eprintln!("{err}");
             return;
         }
     };

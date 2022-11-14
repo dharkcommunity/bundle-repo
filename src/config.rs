@@ -1,35 +1,66 @@
+use std::fmt::{Debug, Formatter};
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::{fs, io};
 
 use cnsl::readln;
 use log::{info, warn};
+use s3::Region;
 use serde::{Deserialize, Serialize};
 
 use crate::build;
 use crate::build::Build;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DbInformation {
-    connection_url: String,
-    cert_path: String,
+#[derive(Serialize, Deserialize)]
+pub struct Credentials {
+    pub access_key: String,
 }
 
-impl DbInformation {
-    #[allow(unused)]
-    pub fn connection_url(&self) -> &str {
-        &self.connection_url
+impl Credentials {
+    const fn new(access_key: String) -> Self {
+        Self { access_key }
+    }
+}
+
+impl Debug for Credentials {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[Credentials hidden]")
+    }
+}
+
+// Region::Custom is neither serializable or deserializable, so we make a wrapper.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RegionWrapper {
+    region: String,
+    endpoint: String,
+}
+
+impl RegionWrapper {
+    pub fn into_region(self) -> Region {
+        Region::Custom {
+            region: self.region,
+            endpoint: self.endpoint,
+        }
     }
 
-    #[allow(unused)]
-    pub fn cert_path(&self) -> &str {
-        &self.cert_path
+    const fn new(region: String, endpoint: String) -> Self {
+        Self { region, endpoint }
     }
+}
 
-    const fn new(connection_url: String, cert_path: String) -> Self {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BucketInfo {
+    pub name: String,
+    pub region: RegionWrapper,
+    pub credentials: Credentials,
+}
+
+impl BucketInfo {
+    const fn new(name: String, region: RegionWrapper, credentials: Credentials) -> Self {
         Self {
-            connection_url,
-            cert_path,
+            name,
+            region,
+            credentials,
         }
     }
 }
@@ -40,41 +71,41 @@ impl DbInformation {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub bind_addr: SocketAddr,
-    pub cors_origins: Option<Vec<String>>,
-    pub database_info: DbInformation,
+    pub cors_origins: Vec<String>,
+    pub bucket_info: BucketInfo,
 }
 
 impl ServerConfig {
     const fn new(
         bind_addr: SocketAddr,
-        cors_origins: Option<Vec<String>>,
-        database_info: DbInformation,
+        cors_origins: Vec<String>,
+        bucket_info: BucketInfo,
     ) -> Self {
         Self {
             bind_addr,
             cors_origins,
-            database_info,
+            bucket_info,
         }
     }
 }
 
-/// If the user has not yet defined the required [DbInformation], they will not be met with an
+/// If the user has not yet defined the required [BucketInfo], they will not be met with an
 /// error. Instead, they will be prompted through **stdin** for said information through the
 /// [ServerConfigCliWrapper::into_server_config_prompted] function.
 #[derive(Deserialize)]
 struct ServerConfigCliWrapper {
     bind_addr: SocketAddr,
-    cors_origins: Option<Vec<String>>,
-    database_info: Option<DbInformation>,
+    cors_origins: Vec<String>,
+    bucket_info: Option<BucketInfo>,
 }
 
 impl ServerConfigCliWrapper {
     fn default_development() -> Self {
-        Self::new("127.0.0.1:8080".parse().unwrap(), None)
+        Self::new("127.0.0.1:8080".parse().unwrap(), Vec::new())
     }
 
     fn default_production() -> Self {
-        Self::new("0.0.0.0:8080".parse().unwrap(), Some(Vec::new()))
+        Self::new("0.0.0.0:8080".parse().unwrap(), Vec::new())
     }
 
     fn default_by_build() -> Self {
@@ -85,47 +116,47 @@ impl ServerConfigCliWrapper {
     }
 
     fn into_server_config_prompted(self) -> ServerConfig {
-        let database_info = self.database_info.unwrap_or_else(|| {
-            warn!("=: The following values are missing in your loaded configuration:");
-            info!(" - Database connection URL");
-            info!(" - Database certification path");
+        let bucket_info = self.bucket_info.unwrap_or_else(|| {
+            warn!(":= The following values are missing in your loaded configuration:");
+            info!(" - bucket region");
+            info!(" - bucket endpoint");
+            info!(" - bucket name");
+            info!(" - bucket access key");
             info!("Enter the missing values below:");
 
-            let info = DbInformation::new(
-                readln!(" >> Database connection URL: "),
-                readln!(" >> Database certification path (.key): "),
+            let region = RegionWrapper::new(
+                readln!(" >> bucket region: "),
+                readln!(" >> bucket endpoint: "),
             );
 
-            info!("Accepted database information: {info:#?}");
+            let info = BucketInfo::new(
+                readln!(" >> bucket name: "),
+                region,
+                Credentials::new(rpassword::prompt_password(" >> bucket access key: ").unwrap()),
+            );
+
+            info!("Accepted bucket information: {info:#?}");
             info
         });
-        ServerConfig::new(self.bind_addr, self.cors_origins, database_info)
+        ServerConfig::new(self.bind_addr, self.cors_origins, bucket_info)
     }
 
-    fn new(bind_addr: SocketAddr, cors_origins: Option<Vec<String>>) -> Self {
+    const fn new(bind_addr: SocketAddr, cors_origins: Vec<String>) -> Self {
         Self {
             bind_addr,
             cors_origins,
-            database_info: None,
+            bucket_info: None,
         }
     }
 }
 
+#[derive(thiserror::Error, Debug)]
 pub enum ConfigError {
-    Io(io::Error),
-    Toml(toml::de::Error),
-}
+    #[error("An IO error occurred: {0}")]
+    Io(#[from] io::Error),
 
-impl From<io::Error> for ConfigError {
-    fn from(err: io::Error) -> Self {
-        Self::Io(err)
-    }
-}
-
-impl From<toml::de::Error> for ConfigError {
-    fn from(err: toml::de::Error) -> Self {
-        Self::Toml(err)
-    }
+    #[error("An error occurred while parsing the configuration: {0}")]
+    Toml(#[from] toml::de::Error),
 }
 
 pub type Result = std::result::Result<ServerConfig, ConfigError>;
