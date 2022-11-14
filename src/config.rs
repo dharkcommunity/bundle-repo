@@ -11,14 +11,18 @@ use serde::{Deserialize, Serialize};
 use crate::build;
 use crate::build::Build;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Credentials {
     pub access_key: String,
+    pub secret_key: String,
 }
 
 impl Credentials {
-    const fn new(access_key: String) -> Self {
-        Self { access_key }
+    const fn new(access_key: String, secret_key: String) -> Self {
+        Self {
+            access_key,
+            secret_key,
+        }
     }
 }
 
@@ -29,7 +33,7 @@ impl Debug for Credentials {
 }
 
 // Region::Custom is neither serializable or deserializable, so we make a wrapper.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegionWrapper {
     region: String,
     endpoint: String,
@@ -48,7 +52,7 @@ impl RegionWrapper {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BucketInfo {
     pub name: String,
     pub region: RegionWrapper,
@@ -122,6 +126,7 @@ impl ServerConfigCliWrapper {
             info!(" - bucket endpoint");
             info!(" - bucket name");
             info!(" - bucket access key");
+            info!(" - bucket secret key");
             info!("Enter the missing values below:");
 
             let region = RegionWrapper::new(
@@ -132,7 +137,10 @@ impl ServerConfigCliWrapper {
             let info = BucketInfo::new(
                 readln!(" >> bucket name: "),
                 region,
-                Credentials::new(rpassword::prompt_password(" >> bucket access key: ").unwrap()),
+                Credentials::new(
+                    rpassword::prompt_password(" >> bucket access key: ").unwrap(),
+                    rpassword::prompt_password(" >> bucket secret key: ").unwrap(),
+                ),
             );
 
             info!("Accepted bucket information: {info:#?}");

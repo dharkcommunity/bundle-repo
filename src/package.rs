@@ -1,31 +1,31 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub struct Package {
-    title: String,
+pub struct PackageInfo {
+    name: String,
     author: u32,
-    releases: Vec<String>,
+    versions: Vec<String>,
 }
 
 #[allow(unused)]
-impl Package {
-    pub const fn new(title: String, author: u32, releases: Vec<String>) -> Self {
+impl PackageInfo {
+    pub const fn new(name: String, author: u32, versions: Vec<String>) -> Self {
         Self {
-            title,
+            name,
             author,
-            releases,
+            versions,
         }
     }
 
-    pub fn title(&self) -> &str {
-        &self.title
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub const fn author(&self) -> u32 {
         self.author
     }
 
-    pub const fn releases(&self) -> &Vec<String> {
-        &self.releases
+    pub const fn versions(&self) -> &Vec<String> {
+        &self.versions
     }
 }

@@ -1,8 +1,9 @@
 use std::io;
 
 use actix_cors::Cors;
-use actix_web::{App, HttpServer};
+use actix_web::{web, App, HttpServer};
 use log::{error, info};
+use s3::Bucket;
 
 use crate::config::{load_config, ServerConfig};
 
@@ -12,19 +13,34 @@ mod config;
 mod logging;
 mod package;
 mod routes;
+mod validate;
 
 #[cfg(test)]
 mod tests;
 
+pub struct AppState {
+    bucket: Bucket,
+}
+
+impl AppState {
+    const fn new(bucket: Bucket) -> Self {
+        Self { bucket }
+    }
+}
+
 async fn start_server(config: ServerConfig) -> io::Result<()> {
     HttpServer::new(move || {
+        let bucket = bucket::load_bucket(&config.bucket_info).expect("Error while loading bucket");
         let mut cors = Cors::default();
 
         for origin in &config.cors_origins {
             cors = cors.allowed_origin(origin);
         }
 
-        App::new().wrap(cors)
+        App::new()
+            .app_data(web::Data::new(AppState::new(bucket)))
+            .service(routes::resource_version_amount)
+            .wrap(cors)
     })
     .bind(config.bind_addr)?
     .run()
